@@ -367,6 +367,17 @@ export default class LoginController extends React.Component {
                         />
                     </div>
                 );
+
+                Utils.showNotification({
+                    title: "Mattermost",
+                    body: "Session Expired: Please sign in to continue receiving notifications.",
+                    requireInteraction: true,
+                    silent: false,
+                    onClick: () => {
+                        window.focus();
+                    }
+                }).catch(() => {});
+
             } else if (extraParam === Constants.PASSWORD_CHANGE) {
                 extraBox = (
                     <div className='alert alert-success'>

@@ -127,48 +127,63 @@ export function isSystemAdmin(roles) {
     return false;
 }
 
-var requestedNotificationPermission = false;
+let requestedNotificationPermission = false;
 
-export function notifyMe(title, body, channel, teamId, silent) {
-    if (!('Notification' in window)) {
-        return;
+// showNotification displays a notification with the configured parameters, throwing an exception
+// if the notification cannot be displayed.
+export async function showNotification({title, body, requireInteraction, silent, onClick}) {
+    let icon = icon50;
+    if (UserAgent.isEdge()) {
+        icon = iconWS;
     }
 
-    if (Notification.permission === 'granted' || (Notification.permission === 'default' && !requestedNotificationPermission)) {
-        requestedNotificationPermission = true;
+    if (!('Notification' in window)) {
+        throw('Notifications not supported.');
+    }
 
-        if (typeof Notification.requestPermission === 'function') {
-            Notification.requestPermission((permission) => {
-                if (permission === 'granted') {
-                    try {
-                        let icon = icon50;
-                        if (UserAgent.isEdge()) {
-                            icon = iconWS;
-                        }
+    if (typeof Notification.requestPermission !== 'function') {
+        throw('Notification.requestPermission unavailable');
+    }
 
-                        const notification = new Notification(title, {body, tag: body, icon, requireInteraction: false, silent});
-                        notification.onclick = () => {
-                            window.focus();
-                            if (channel && (channel.type === Constants.DM_CHANNEL || channel.type === Constants.GM_CHANNEL)) {
-                                browserHistory.push(TeamStore.getCurrentTeamRelativeUrl() + '/channels/' + channel.name);
-                            } else if (channel) {
-                                browserHistory.push(TeamStore.getTeamRelativeUrl(teamId) + '/channels/' + channel.name);
-                            } else if (teamId) {
-                                browserHistory.push(TeamStore.getTeamRelativeUrl(teamId) + `/channels/${Constants.DEFAULT_CHANNEL}`);
-                            } else {
-                                browserHistory.push(TeamStore.getCurrentTeamRelativeUrl() + `/channels/${Constants.DEFAULT_CHANNEL}`);
-                            }
-                        };
+    if (Notification.permission !== 'granted' && requestedNotificationPermission) {
+        throw('Notifications previously denied.');
+    }
 
-                        setTimeout(() => {
-                            notification.close();
-                        }, Constants.DEFAULT_NOTIFICATION_DURATION);
-                    } catch (e) {
-                        console.error(e); //eslint-disable-line no-console
-                    }
-                }
-            });
-        }
+    requestedNotificationPermission = true;
+
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') {
+        throw('Notification denied.');
+    }
+
+    const notification = new Notification(title, {body, tag: body, icon, requireInteraction, silent});
+    if (onClick) {
+        notification.onclick = onClick;
+    }
+
+    if (!requireInteraction) {
+        setTimeout(() => {
+            notification.close();
+        }, Constants.DEFAULT_NOTIFICATION_DURATION);
+    }
+}
+
+export async function notifyMe(title, body, channel, teamId, silent) {
+    try {
+        showNotification({title, body, requireInteraction: false, silent, onClick: () => {
+            window.focus();
+            if (channel && (channel.type === Constants.DM_CHANNEL || channel.type === Constants.GM_CHANNEL)) {
+                browserHistory.push(TeamStore.getCurrentTeamRelativeUrl() + '/channels/' + channel.name);
+            } else if (channel) {
+                browserHistory.push(TeamStore.getTeamRelativeUrl(teamId) + '/channels/' + channel.name);
+            } else if (teamId) {
+                browserHistory.push(TeamStore.getTeamRelativeUrl(teamId) + `/channels/${Constants.DEFAULT_CHANNEL}`);
+            } else {
+                browserHistory.push(TeamStore.getCurrentTeamRelativeUrl() + `/channels/${Constants.DEFAULT_CHANNEL}`);
+            }
+        }});
+    } catch (e) {
+        console.error(e); //eslint-disable-line no-console
     }
 }
 
